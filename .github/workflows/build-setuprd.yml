@@ -76,39 +76,17 @@ jobs:
           echo "IPSW_SDK_PATH=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk" >> $GITHUB_ENV
           echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Run precheck
+      - name: Run precheck (validates build and generates profile)
         run: |
           cd doublera1n
           export PATH="$HOME/.local/bin:$PATH"
           .venv/bin/python3 dualboot.py precheck --build ${{ github.event.inputs.build }} --board ${{ github.event.inputs.board }}
 
-      - name: Run mk_setuprd.py install
-        run: |
-          cd doublera1n
-          export PATH="$HOME/.local/bin:$PATH"
-          .venv/bin/python3 lib/mk_setuprd.py install
-
-      - name: Find generated artifacts
-        id: artifacts
-        run: |
-          WORKROOT="${HOME}/dualboot-work"
-          ECID_DIRS=$(find "${WORKROOT}" -maxdepth 1 -type d -name "*-${{ github.event.inputs.build }}")
-          echo "ECID_DIRS=${ECID_DIRS}" >> $GITHUB_OUTPUT
-          
-          for dir in ${ECID_DIRS}; do
-            if [ -f "${dir}/build/setuprd-install.img4" ]; then
-              echo "FOUND_IMG4=true" >> $GITHUB_OUTPUT
-              echo "ARTIFACT_DIR=${dir}/build" >> $GITHUB_OUTPUT
-              break
-            fi
-          done
-
-      - name: Upload setuprd artifacts
-        if: steps.artifacts.outputs.FOUND_IMG4 == 'true'
+      - name: Upload profile artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: setuprd-${{ github.event.inputs.build }}-${{ github.event.inputs.board }}
-          path: ${{ steps.artifacts.outputs.ARTIFACT_DIR }}/setuprd-*.img4
+          name: profile-${{ github.event.inputs.build }}-${{ github.event.inputs.board }}
+          path: doublera1n/profiles/*-${{ github.event.inputs.build }}
           retention-days: 30
 
       - name: Summary
