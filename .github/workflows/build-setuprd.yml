@@ -1,0 +1,119 @@
+name: Build Setup Ramdisk
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: 'iOS build version (e.g., 24A446, 24B119, 24B156)'
+        required: true
+        type: string
+      board:
+        description: 'Board ID (e.g., j181ap for iPad 9 Wi-Fi, d421ap for iPhone 11 Pro)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-setuprd:
+    name: Build Setup Ramdisk for ${{ github.event.inputs.build }} (${{ github.event.inputs.board }})
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          # Install Homebrew if not present
+          which brew || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          
+          # Add Homebrew to PATH for Apple Silicon
+          if [[ $(uname -m) == "arm64" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+          fi
+          
+          brew install libimobiledevice libirecovery ldid libusb python3
+          brew install blacktop/tap/ipsw
+
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Create Python virtual environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r requirements.txt
+
+      - name: Set up environment
+        run: |
+          echo "IPSW_SDK_PATH=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk" >> $GITHUB_ENV
+          echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Run precheck (validates build and generates profile)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          .venv/bin/python3 dualboot.py precheck --build ${{ github.event.inputs.build }} --board ${{ github.event.inputs.board }}
+
+      - name: Run mk_setuprd.py install
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          .venv/bin/python3 lib/mk_setuprd.py install
+
+      - name: Find generated artifacts
+        id: artifacts
+        run: |
+          WORKROOT="${HOME}/dualboot-work"
+          ECID_DIRS=$(find "${WORKROOT}" -maxdepth 1 -type d -name "*-${{ github.event.inputs.build }}")
+          echo "ECID_DIRS=${ECID_DIRS}" >> $GITHUB_OUTPUT
+          
+          for dir in ${ECID_DIRS}; do
+            if [ -f "${dir}/build/setuprd-install.img4" ]; then
+              echo "FOUND_IMG4=true" >> $GITHUB_OUTPUT
+              echo "ARTIFACT_DIR=${dir}/build" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+      - name: Upload setuprd artifacts
+        if: steps.artifacts.outputs.FOUND_IMG4 == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: setuprd-${{ github.event.inputs.build }}-${{ github.event.inputs.board }}
+          path: ${{ steps.artifacts.outputs.ARTIFACT_DIR }}/setuprd-*.img4
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## Setup Ramdisk Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build:** ${{ github.event.inputs.build }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Board:** ${{ github.event.inputs.board }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated Artifacts" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.artifacts.outputs.FOUND_IMG4 }}" = "true" ]; then
+            echo "✅ setuprd-install.img4" >> $GITHUB_STEP_SUMMARY
+            echo "✅ setuptc-install.img4" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+            echo "1. Download the artifacts from this workflow run" >> $GITHUB_STEP_SUMMARY
+            echo "2. Place them in your Linux machine at:" >> $GITHUB_STEP_SUMMARY
+            echo "   \`~/dualboot-work/<ECID>-${{ github.event.inputs.build }}/build/\`" >> $GITHUB_STEP_SUMMARY
+            echo "3. Run \`./dualboot.sh\` on Linux" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No artifacts found - check workflow logs" >> $GITHUB_STEP_SUMMARY
+          fi
