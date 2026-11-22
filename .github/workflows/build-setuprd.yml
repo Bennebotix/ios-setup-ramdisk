@@ -91,21 +91,16 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Setup Ramdisk Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## Precheck Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build:** ${{ github.event.inputs.build }}" >> $GITHUB_STEP_SUMMARY
           echo "**Board:** ${{ github.event.inputs.board }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Generated Artifacts" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.artifacts.outputs.FOUND_IMG4 }}" = "true" ]; then
-            echo "✅ setuprd-install.img4" >> $GITHUB_STEP_SUMMARY
-            echo "✅ setuptc-install.img4" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-            echo "1. Download the artifacts from this workflow run" >> $GITHUB_STEP_SUMMARY
-            echo "2. Place them in your Linux machine at:" >> $GITHUB_STEP_SUMMARY
-            echo "   \`~/dualboot-work/<ECID>-${{ github.event.inputs.build }}/build/\`" >> $GITHUB_STEP_SUMMARY
-            echo "3. Run \`./dualboot.sh\` on Linux" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ No artifacts found - check workflow logs" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "### Generated Profile" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Profile generated at \`profiles/<board>-<build>\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the profile artifact" >> $GITHUB_STEP_SUMMARY
+          echo "2. Place in your Linux machine at \`~/dualboot-work/profiles/<board>-<build>/profile.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. **For setup ramdisk**: Run \`./mk_setuprd.py install\` on macOS with device in DFU mode" >> $GITHUB_STEP_SUMMARY
+          echo "4. Copy generated \`setuprd-install.img4\` and \`setuptc-install.img4\` to Linux" >> $GITHUB_STEP_SUMMARY
