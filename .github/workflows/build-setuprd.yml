@@ -21,10 +21,20 @@ jobs:
     name: Build Setup Ramdisk for ${{ github.event.inputs.build }} (${{ github.event.inputs.board }})
     runs-on: macos-latest
     timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ github.workspace }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify checkout
+        run: |
+          pwd
+          ls -la
+          test -f requirements.txt && echo "requirements.txt found" || echo "requirements.txt NOT FOUND"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -33,14 +43,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Install Homebrew if not present
           which brew || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          
-          # Add Homebrew to PATH for Apple Silicon
           if [[ $(uname -m) == "arm64" ]]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
           fi
-          
           brew install libimobiledevice libirecovery ldid libusb python3
           brew install blacktop/tap/ipsw
 
@@ -64,7 +70,7 @@ jobs:
           echo "IPSW_SDK_PATH=/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk" >> $GITHUB_ENV
           echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Run precheck (validates build and generates profile)
+      - name: Run precheck
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           .venv/bin/python3 dualboot.py precheck --build ${{ github.event.inputs.build }} --board ${{ github.event.inputs.board }}
