@@ -5,12 +5,19 @@ on:
     inputs:
       build:
         description: 'iOS build version (e.g., 24A446, 24B119, 24B156)'
-        required: true
+        required: false
         type: string
+        default: '24A446'
       board:
         description: 'Board ID (e.g., j181ap for iPad 9 Wi-Fi, d421ap for iPhone 11 Pro)'
-        required: true
+        required: false
         type: string
+        default: 'j181ap'
+      repo:
+        description: 'Doublera1n repo URL (defaults to original)'
+        required: false
+        type: string
+        default: 'https://github.com/34306/doublera1n.git'
 
 permissions:
   contents: read
@@ -27,14 +34,12 @@ jobs:
         working-directory: ${{ github.workspace }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Verify checkout
+      - name: Clone doublera1n repository
         run: |
+          git clone --depth 1 ${{ github.event.inputs.repo }} doublera1n
+          cd doublera1n
           pwd
           ls -la
-          test -f requirements.txt && echo "requirements.txt found" || echo "requirements.txt NOT FOUND"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -53,14 +58,15 @@ jobs:
       - name: Cache Python venv
         uses: actions/cache@v4
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          path: doublera1n/.venv
+          key: venv-${{ runner.os }}-${{ hashFiles('doublera1n/requirements.txt') }}
           restore-keys: |
             venv-${{ runner.os }}-
 
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
+          cd doublera1n
           python3 -m venv .venv
           .venv/bin/pip install -q --upgrade pip
           .venv/bin/pip install -q -r requirements.txt
@@ -72,11 +78,13 @@ jobs:
 
       - name: Run precheck
         run: |
+          cd doublera1n
           export PATH="$HOME/.local/bin:$PATH"
           .venv/bin/python3 dualboot.py precheck --build ${{ github.event.inputs.build }} --board ${{ github.event.inputs.board }}
 
       - name: Run mk_setuprd.py install
         run: |
+          cd doublera1n
           export PATH="$HOME/.local/bin:$PATH"
           .venv/bin/python3 lib/mk_setuprd.py install
 
