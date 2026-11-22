@@ -19,7 +19,7 @@ permissions:
 jobs:
   build-setuprd:
     name: Build Setup Ramdisk for ${{ github.event.inputs.build }} (${{ github.event.inputs.board }})
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 60
 
     steps:
